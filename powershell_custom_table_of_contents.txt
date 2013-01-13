@@ -1,0 +1,13 @@
+:BEGIN {Table of Contents}
+
+===================================
+Default:
+===================================
+  * _setAlias : same as Set-Alias, but includes session-to-session persistance
+  * _addalias : sets an alias for a script or file by searching your computer for it
+  * _restartShell : terminates this powershell instance and creates a new one
+  * _displayCustomHelp : displays this help screen
+
+===================================
+Custom:
+===================================
