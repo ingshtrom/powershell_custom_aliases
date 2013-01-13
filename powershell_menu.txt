@@ -1,38 +1,14 @@
 :BEGIN {Table of Contents}
 
 ==================================================================================
-Programs:
+Default:
 ==================================================================================
-  * chrome                  : chrome browser
-  * dartium                 : dartium browser
-  * sublime                 : sublime text editor
-  * darte                   : dart editor
-  * github                  : github repo manager
-  * steam                   : steam
-  * itunes                  : iTunes
-  * vs                      : MS Visual Studio 2012
-  * unity                   : Unity
+  * _displayCustomHelp : shows this help view
+  * _setAlias : the same as Set-Alias but saves the alias for all sessions
+  * _addAlias : searches computer for a file and set's the alias to a file/script/etc
+  * _restartShell : restart Powershell with a new session
+  * __addCommandToCustomHelp : add a command to the custom section of this help screen (this is done automatically in _setAlias/_addAlias)
 
 ==================================================================================
-Scripts
+Custom:
 ==================================================================================
-  * dart2js                 : dart2js.bat
-  * darta                   : dart_analyzer.bat
-  * dartd                   : dartdoc.bat
-  * dartp                   : pub.bat
-  * git                     : git command line
-
-==================================================================================
-Games:
-==================================================================================
-  * gw2                     : Guild Wars 2
-  * cavestory               : Cave Story
-
-==================================================================================
-Developer:
-==================================================================================
-  * Add-Alias               : Set-Alias and then export all alias' for later use
-  * _saveAliasBindings      : manually export all alias' for later use
-  * _retrieveAliasBindings  : manually import all alias' for this session's use
-
-:END
