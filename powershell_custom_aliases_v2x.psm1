@@ -73,7 +73,11 @@ Function _addAlias
   Write-Host "Searching $($file_system_drives) for '$($filter)'..........."
   $possible_matches = @()
   foreach ($drive in $file_system_drives) {
+    Write-Host "Searching Drive $($drive): ......"
+    $start = Get-Date -Verbose
     $result = Get-ChildItem -Path "$($drive):\" -Filter $filter -Recurse -ErrorAction SilentlyContinue
+    $end = Get-Date -Verbose
+    Write-Host "Search on drive '$($drive)' took this long: $($end - $start)"
     if ($result -ne $null) {
       foreach ($match in $result) {
         Write-Host "found match!"

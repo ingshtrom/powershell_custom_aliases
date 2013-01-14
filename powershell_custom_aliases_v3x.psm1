@@ -45,7 +45,7 @@ Function _addAlias
   param(
     [string]$alias_name = $(Read-Host "What will be the alias name?"),
     [string]$filter = $(Read-Host "What keyword should we use to filter the search? (you can use * as wildcard)"),
-    [string]$drive_letter = $(Read-Host "Enter an absolute directory path or press [Enter] to search all available drives (this may take a long time)")
+    [string]$drive_letter = $(Read-Host "Enter a drive letter to search(~15s for 380GB) or press [Enter] to search all available drives (this may take a loooong time)")
   )
 
   # getting the drives to search on
@@ -73,7 +73,10 @@ Function _addAlias
   $possible_matches = @()
   foreach ($drive in $file_system_drives) {
     Write-Host "Searching Drive $($drive): ......"
-    $result = Get-ChildItem -Path "$($drive):" -Filter $filter -Recurse -Force -ErrorAction SilentlyContinue
+    $start = Get-Date -Verbose
+    $result = Get-ChildItem -Path "$($drive):\" -Filter $filter -Recurse -ErrorAction SilentlyContinue
+    $end = Get-Date -Verbose
+    Write-Host "Search on drive '$($drive)' took this long: $($end - $start)"
     if ($result -ne $null) {
       foreach ($match in $result) {
         $possible_matches += $match.FullName
