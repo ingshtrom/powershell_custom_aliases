@@ -1,11 +1,9 @@
-﻿## powershell_custom_aliases.psm1 ##
+﻿## powershell_custom_aliases_v3x.psm1 ##
 
 Function _init
 {
-  Set-Location E:
-
-  $custom_aliases_path = "$($profile)\..\custom_aliases.txt"
-  $custom_help_path = "$($profile)\..\powershell_custom_table_of_contents.txt"
+  $Global:custom_aliases_path = "$($profile)\..\custom_aliases.txt"
+  $Global:custom_help_path = "$($profile)\..\powershell_custom_table_of_contents.txt"
 
   if (Test-Path $custom_aliases_path) {
     Import-Alias $custom_aliases_path -Scope Global -ErrorAction Ignore
@@ -36,7 +34,7 @@ Function _setAlias
   Write-Host "Success!"
   Write-Host "You can now use '$($alias_name)' in place of '$($command_name)' while running PowerShell"
   Write-Host "May the force be with you..."
-  Export-Alias $custom_aliases_path
+  Export-Alias -Path $custom_aliases_path
   __addCommandToCustomHelp -alias_name $alias_name -command_name $command_name
   _restartShell
 }
@@ -47,7 +45,7 @@ Function _addAlias
   param(
     [string]$alias_name = $(Read-Host "What will be the alias name?"),
     [string]$filter = $(Read-Host "What keyword should we use to filter the search? (you can use * as wildcard)"),
-    [string]$drive_letter = $($drive_letter = Read-Host "Enter a drive letter to search, or press [Enter] to search all available drives")
+    [string]$drive_letter = $(Read-Host "Enter an absolute directory path or press [Enter] to search all available drives (this may take a long time)")
   )
 
   # getting the drives to search on
@@ -75,7 +73,7 @@ Function _addAlias
   $possible_matches = @()
   foreach ($drive in $file_system_drives) {
     Write-Host "Searching Drive $($drive): ......"
-    $result = Get-ChildItem -Path "$($drive):" -Filter $filter -Recurse -ErrorAction Ignore
+    $result = Get-ChildItem -Path "$($drive):" -Filter $filter -Recurse -Force -ErrorAction SilentlyContinue
     if ($result -ne $null) {
       foreach ($match in $result) {
         $possible_matches += $match.FullName
