@@ -11,7 +11,7 @@ Function _init
   _displayCustomHelp
 }
 
-Function _displayCustomHelp
+Function Show-CustomHelp
 {
   $file = Get-Content $custom_help_path -ErrorAction Stop
   foreach ($line in $file) {
@@ -23,106 +23,138 @@ Function _displayCustomHelp
 }
 
 # used for commands that are already in the global space
-Function _setAlias
+# type and alias_name are always required
+# if type == 0 >> command_name is required
+# if type == 1 >> filter and drive_letter is required
+Function Set-CustomAlias
 {
   param(
+    [string]$type = $(Read-Host "Please enter the type of alias you want to create (0: Using an already defined cmdlet. 1: Search for a specific file path.")
     [string]$alias_name = $(Read-Host "What will be the alias name?"),
-    [string]$command_name = $(Read-Host "What is the currently defined command?")
+    [string]$command_name,
+    [string]$filter,
+    [string]$drive_letter
   )
 
-  Set-Alias $alias_name $command_name
-  Write-Host "Success!"
-  Write-Host "You can now use '$($alias_name)' in place of '$($command_name)' while running PowerShell"
-  Write-Host "May the force be with you..."
-  Export-Alias -Path $custom_aliases_path
-  __addCommandToCustomHelp -alias_name $alias_name -command_name $command_name
-  _restartShell
-}
+  # answer the customer's every need until the CPU melts or they say stop
+  $is_finished = $false
+  do {
+    #while loop starts here
+    if (([int]$type) -eq 0) {
+      $command_name = $(Read-Host "What is the currently defined command?")
+      Set-Alias $alias_name $command_name
+      Write-Host "Success!"
+      Write-Host "You can now use '$($alias_name)' in place of '$($command_name)' while running PowerShell"
+      Write-Host "May the force be with you..."
+      Export-Alias -Path $custom_aliases_path
+      Add-CustomAliasInfo -alias_name $alias_name -command_name $command_name
+      Restart-Shell
+    } else if (([int]$type) -eq 1) {
+      $filter = $(Read-Host "What keyword should we use to filter the search? (you can use * as wildcard)")
+      $drive_letter = $(Read-Host "Enter a drive letter to search(~15s for 380GB) or press [Enter] to search all available drives (this may take a loooong time)")
+      # getting the drives to search on
+      $drives = Get-PSDrive
+      if ($drive_letter -ne "") {
+        $drives = @("$drive_letter")
+      }
 
-# used for scripts and files that aren't already in the global space
-Function _addAlias
-{
-  param(
-    [string]$alias_name = $(Read-Host "What will be the alias name?"),
-    [string]$filter = $(Read-Host "What keyword should we use to filter the search? (you can use * as wildcard)"),
-    [string]$drive_letter = $(Read-Host "Enter a drive letter to search(~15s for 380GB) or press [Enter] to search all available drives (this may take a loooong time)")
-  )
+      $file_system_drives = @()
+      if ($drives[0].GetType().Name -eq "String") {
+        $file_system_drives = $drives
+      } else {
+        $drives = Get-PSDrive
+        foreach ($drive in $drives) {
+          if ($drive.Provider.ToString() -eq "Microsoft.PowerShell.Core\FileSystem") {
+            $file_system_drives += $drive
+          }
+        }
+      }
 
-  # getting the drives to search on
-  $drives = Get-PSDrive
-  if ($drive_letter -ne "") {
-    $drives = @("$drive_letter")
-  }
+      $drive = $null
 
-  $file_system_drives = @()
-  if ($drives[0].GetType().Name -eq "String") {
-    $file_system_drives = $drives
-  } else {
-    $drives = Get-PSDrive
-    foreach ($drive in $drives) {
-      if ($drive.Provider.ToString() -eq "Microsoft.PowerShell.Core\FileSystem") {
-        $file_system_drives += $drive
+      # searching the drives recursively
+      Write-Host "Searching $($file_system_drives) for '$filter'..........."
+      $possible_matches = @()
+      foreach ($drive in $file_system_drives) {
+        Write-Host "Searching Drive $($drive): ......"
+        $start = Get-Date -Verbose
+        $result = Get-ChildItem -Path "$($drive):\" -Filter $filter -Recurse -ErrorAction SilentlyContinue
+        $end = Get-Date -Verbose
+        Write-Host "Search on drive '$($drive)' took this long: $($end - $start)"
+        if ($result -ne $null) {
+          foreach ($match in $result) {
+            $possible_matches += $match.FullName
+          }
+        }
+      }
+
+      # output results and set-alias if user found their file
+      Write-Host "Found $($possible_matches.count) possible matches."
+      $answer = "0"
+      if ($possible_matches.count -ne 0) {
+        $counter = 1
+        Write-Host "0 : NONE of the below options are correct!"
+        foreach ($match in $possible_matches) {
+          Write-Host "$counter : $match"
+          $counter++
+        }
+
+        $answer = Read-Host "Enter the number of the path that you want your alias to point to"
+      }
+
+      $answer_number = [int]$answer
+
+      # output final results
+      if($answer_number -eq 0) {
+        Write-Host "I'm sorry this didn't work. Maybe the file you are looking for...doesn't exist."
+      } else {
+        $alias_path = $possible_matches[$answer_number-1]
+        Set-Alias $alias_name $alias_path
+        Write-Host "Success!"
+        Write-Host "You can now use '$($alias_name)' in place of '$($alias_path)' while running PowerShell"
+        Write-Host "May the force be with you..."
+        Export-Alias $custom_aliases_path
+        Add-CustomAliasInfo -alias_name $alias_name -command_name $alias_path
+        Restart-Shell
       }
     }
-  }
 
-  $drive = $null
+    if ($is_finished -eq $false) {
+      $title = "Try Again"
+      $message = "Do you want to try again/create another alias?"
 
-  # searching the drives recursively
-  Write-Host "Searching $($file_system_drives) for '$filter'..........."
-  $possible_matches = @()
-  foreach ($drive in $file_system_drives) {
-    Write-Host "Searching Drive $($drive): ......"
-    $start = Get-Date -Verbose
-    $result = Get-ChildItem -Path "$($drive):\" -Filter $filter -Recurse -ErrorAction SilentlyContinue
-    $end = Get-Date -Verbose
-    Write-Host "Search on drive '$($drive)' took this long: $($end - $start)"
-    if ($result -ne $null) {
-      foreach ($match in $result) {
-        $possible_matches += $match.FullName
+      $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", `
+          "let's do it again!."
+
+      $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No", `
+          "Stop the torture now!."
+
+      $options = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
+
+      $result = $host.ui.PromptForChoice($title, $message, $options, 0)
+
+      switch ($result) {
+        0 {
+          $is_finished = $false
+          $type = $(Read-Host "Please enter the type of alias you want to create (0: Using an already defined cmdlet. 1: Search for a specific file path.")
+          $alias_name = $(Read-Host "What will be the alias name?")
+        }
+        1 {
+          $is_finished = $true
+        }
       }
     }
-  }
-
-  # output results and set-alias if user found their file
-  Write-Host "Found $($possible_matches.count) possible matches."
-  $answer = "0"
-  if ($possible_matches.count -ne 0) {
-    $counter = 1
-    Write-Host "0 : NONE of the below options are correct!"
-    foreach ($match in $possible_matches) {
-      Write-Host "$counter : $match"
-      $counter++
-    }
-
-    $answer = Read-Host "Enter the number of the path that you want your alias to point to"
-  }
-
-  $answer_number = [int]$answer
-
-  # output final results
-  if($answer_number -eq 0) {
-    Write-Host "I'm sorry this didn't work. Maybe the file you are looking for...doesn't exist."
-  } else {
-    $alias_path = $possible_matches[$answer_number-1]
-    Set-Alias $alias_name $alias_path
-    Write-Host "Success!"
-    Write-Host "You can now use '$($alias_name)' in place of '$($alias_path)' while running PowerShell"
-    Write-Host "May the force be with you..."
-    Export-Alias $custom_aliases_path
-    __addCommandToCustomHelp -alias_name $alias_name -command_name $alias_path
-    _restartShell
-  }
+  } while ($is_finished -eq $false)
 }
 
-Function _restartShell
+Function Restart-Shell
 {
   $current_powershell = Get-Process -Name powershell
   Start-Process powershell
   Stop-Process $current_powershell
 }
 
-Function __addCommandToCustomHelp
+Function Add-CustomAliasInfo
 {
   param(
     [parameter(Mandatory=$true)]
@@ -134,7 +166,7 @@ Function __addCommandToCustomHelp
 
   $new_line = "  * $($alias_name) : $($command_name)"
 
-  if (202 -eq $(__searchAndActionLine -key $alias_name -file_path $custom_help_path -action "replace" -new_line $new_line)) {
+  if (202 -eq $(Search-CustomAliasInfo -key $alias_name -file_path $custom_help_path -action "replace" -new_line $new_line)) {
     # do nothing since it was found and replaced
   } else {
     if (Test-Path $custom_help_path) {
@@ -143,12 +175,36 @@ Function __addCommandToCustomHelp
   }
 }
 
-# returns a code that tells the caller what happened
+Function Remove-CustomAliasInfo
+{
+  param(
+    [parameter(Mandatory=$true)]
+    [string]$alias_name,
+
+    [parameter(Mandatory=$true)]
+    [string]$command_name
+  )
+
+  $new_line = "  * $($alias_name) : $($command_name)"
+
+  if (202 -eq $(Search-CustomAliasInfo -key $alias_name -file_path $custom_help_path -action "remove") {
+    # do nothing since it was found and replaced
+  } else {
+    if (Test-Path $custom_help_path) {
+      Add-Content -Path $custom_help_path -Value $new_line
+    }
+  }
+}
+
+
+# PARAMETERS
+# (string) $action : "remove", "replace"
+# RETURN: a code that tells the caller what happened
 # 200 : found the line and did nothing
 # 201 : found the line and removed it
 # 202 : found the line and replaced it
 # 404 : didn't find the line
-Function __searchAndActionLine
+Function Search-CustomAliasInfo
 {
   param(
     [parameter(Mandatory=$true)]
@@ -164,7 +220,7 @@ Function __searchAndActionLine
 
   $return_code = 404
 
-  # TODO: search for matches in $command_name and $alias_name
+  # TODO: search for matches in $alias_name
 
   if (Test-Path $file_path) {
     $current_content = Get-Content $file_path
@@ -192,4 +248,4 @@ Function __searchAndActionLine
 
 # don't export everything!
 # everything with a double underscore will be "private" to the module
-Export-ModuleMember -function @("_init", "_displayCustomHelp", "_restartShell", "_setAlias", "_addAlias")
+# Export-ModuleMember -function @("_init", "Display-CustomAliasInfo", "Restart-Shell", "Set-CustomAlias", "Add-CustomAlias")
