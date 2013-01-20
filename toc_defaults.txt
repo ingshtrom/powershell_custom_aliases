@@ -1,12 +1,6 @@
-:BEGIN {Table of Contents}
-
 ===================================
-Default:
+DEFAULT:
 ===================================
   * Set-CustomAlias : same as Set-Alias, but includes session-to-session persistance
   * Restart-Shell : terminates this powershell instance and creates a new one
   * Show-CustomHelp : displays this help screen
-
-===================================
-Custom:
-===================================

@@ -1,25 +1,73 @@
-﻿## powershell_custom_aliases_v3x.psm1 ##
+## powershell_custom_aliases_v3x.psm1 ##
+<#
 
-Function _init
-{
-  $Global:custom_aliases_path = "$($profile)\..\custom_aliases.txt"
-  $Global:custom_help_path = "$($profile)\..\powershell_custom_table_of_contents.txt"
+  TODO: rewrite some of the cmdlet-bindings so that they are up to Powershell Cmdlet standards.
+    - verbose, error-reporting, etc. options supported
+  TODO: write a funciton for restarting a given process
+  TODO: support global parameter aliases
+  TODO: optimize the searhing in Set-CustomAlias (maybe some sort of background processing as results come in and are displayed right away)
 
-  if (Test-Path $custom_aliases_path) {
-    Import-Alias $custom_aliases_path -Scope Global -ErrorAction Ignore
-  }
-  _displayCustomHelp
-}
+
+  if you are lost, search for "LAST_WORK"
+#>
 
 Function Show-CustomHelp
 {
-  $file = Get-Content $custom_help_path -ErrorAction Stop
-  foreach ($line in $file) {
-    Write-Host $line
+  <#
+    .PURPOSE
+      * Shows the table of contents (or just certain sections) for the PowershellCustomAliases module
+    .PARAMETERS
+      * (string) -type
+        - [default] "all": shows the whole table of contents help
+        - "default": shows the default functions/cmdlets that are available
+        - "params": shows all custom global parameters currently available
+        - "aliases": shows all custom aliases currently available
+  #>
+  params {
+    [string]$type = "all"
   }
-  Write-Host ""
-  Write-Host ":END"
-  Write-Host ""
+
+  PROCESS {
+    Write-Host ""
+    Write-Host ":BEGIN"
+    Write-Host ""
+
+    __writeCustomHelp($type);
+
+    Write-Host ""
+    Write-Host ":END"
+    Write-Host ""
+  }
+}
+
+# private function used only in Show-CustomHelp
+Function __writeCustomHelp
+{
+  params {
+    [string]$type = "all"
+  }
+
+  # figure out which sections should be displayed
+  $file_paths = @()
+  if ($type -eq "default") {
+    $file_paths += $toc_default;
+  } elseif ($type -eq "aliases") {
+    $file_paths += $toc_aliases;
+  } elseif ($type -eq "params") {
+    $file_paths += $toc_params;
+  } else {
+    $file_paths += $toc_default;
+    $file_paths += $toc_aliases;
+    $file_paths += $toc_params;
+  }
+
+  # display the sections in $file_paths
+  foreach ($file_path in $file_paths) {
+    $file = Get-Content $file_path
+    foreach ($line in $file) {
+      Write-Host $line
+    }
+  }
 }
 
 # used for commands that are already in the global space
@@ -28,6 +76,24 @@ Function Show-CustomHelp
 # if type == 1 >> filter and drive_letter is required
 Function Set-CustomAlias
 {
+  <#
+    .PURPOSE
+      * To create a new alias that serves as a "short-cut" to something else
+    .PARAMETERS
+      * (string) -type:
+        - 0: create an alias and export to preserve this option for future sessions (command_name parameter needs to be defined as well)
+        - 1: create a "short-cut" to a certain file (usually a .bat or .exe) (filter and drive_letter parameters need to be defined as well)
+        TODO: - 2: create a "macro" to a cmdlet that includes specific parameters to the cmdlet
+      * (string) -alias_name: the new alias that links to the cmdlet or file
+      * (string) -command_name: the cmdlet that the alias points to
+      * (string) -filter: when searching (type:1 only), the keyword to search on.  Wildcards are defined as '*'
+      * (string) -drive_letter: the drive to search on (defaults to all "FileSystem" drives, which includes mapped network drives)
+      TODO: allow specifying directory paths as well as drive letters for the beginning of the search
+    .NOTES
+      * when tested on my machine with Powershellv3, Windows 8 (you can see the rest at my site http://ingshtrom.tumblr.com/pc-spec),
+          the speed of the file search was ~17seconds to 400GB of data on a single disk
+      * I strongly suggest NOT searching for your file on network drives, this can take longer than trying to get help from Microsoft Custom Service center :P
+  #>
   param(
     [string]$type = $(Read-Host "Please enter the type of alias you want to create (0: Using an already defined cmdlet. 1: Search for a specific file path.")
     [string]$alias_name = $(Read-Host "What will be the alias name?"),
@@ -149,29 +215,79 @@ Function Set-CustomAlias
 
 Function Restart-Shell
 {
-  $current_powershell = Get-Process -Name powershell
-  Start-Process powershell
-  Stop-Process $current_powershell
+  <#
+    .PURPOSE
+      * restarts the current powershell session
+    .PARAMETERS
+      * none
+    .EXAMPLE
+      * Restart-Shell
+    .NOTES
+      * this is useful for reloading the custom alias file
+      * flags supported: -verbose, -debug
+  #>
+  PROCESS {
+    Restart-Process -process "powershell"
+  }
+}
+
+Function Restart-Process
+{
+  <#
+  #>
+  params {
+    ## LAST_WORK!!
+  }
+  PROCESS {
+    WriteVerbose "Searching for the $($process) process..."
+    $current_process = Get-Process -Name
+    WriteVerbose "Found the $($process) process!"
+    WriteDebug "process id: $($current_process) ."
+    WriteVerbose "Starting a new $($process) process..."
+    Start-Process $process
+    WriteVerbose "Started the process"
+    Stop-Process $current_powershell
+  }
 }
 
 Function Add-CustomAliasInfo
 {
+  <#
+    .PURPOSE
+      * Adds a new line to the given Table of Contents section (TODO)
+    .PARAMETERS
+      * [-alias_name [string-value]] [-command_name [string-value]] [-section [string-value]]
+      * (string) -alias_name: the name of the alias for this entry
+      * (string) -command_name: the name of the command or file that the alias is pointing to
+      * (string) -section
+        - [default] "aliases": the custom aliases section
+        - "params": the global parameters section
+        - "default": the default function section (not recommended)
+  #>
   param(
     [parameter(Mandatory=$true)]
-    [string]$alias_name,
+    [string]$alias_name = $(Read-Host "What will be the alias name for the entry?"),
 
     [parameter(Mandatory=$true)]
-    [string]$command_name
+    [string]$command_name = $(Read-Host "What is the command name for the entry?"),
+
+    [string]$section = $(Read-Host "What section should this be added to ('aliases', 'params', 'default')?")
   )
+  BEGIN {
+    WriteVerbose "Finding the file for the section specified";
+  }
+  PROCESS {
+    WriteVerbose "Creating the line to add to the Table of Contents"
+    $new_line = "  * $($alias_name) : $($command_name)"
 
-  $new_line = "  * $($alias_name) : $($command_name)"
-
-  if (202 -eq $(Search-CustomAliasInfo -key $alias_name -file_path $custom_help_path -action "replace" -new_line $new_line)) {
-    # do nothing since it was found and replaced
-  } else {
-    if (Test-Path $custom_help_path) {
-      Add-Content -Path $custom_help_path -Value $new_line
+    if (202 -eq $(Search-CustomAliasInfo -key $alias_name -file_path $custom_help_path -action "replace" -new_line $new_line)) {
+      # do nothing since it was found and replaced
+    } else {
+      if (Test-Path $custom_help_path) {
+        Add-Content -Path $custom_help_path -Value $new_line
+      }
     }
+    WriteVerbose "Alias written to the Table of contents"
   }
 }
 
@@ -249,3 +365,14 @@ Function Search-CustomAliasInfo
 # don't export everything!
 # everything with a double underscore will be "private" to the module
 # Export-ModuleMember -function @("_init", "Display-CustomAliasInfo", "Restart-Shell", "Set-CustomAlias", "Add-CustomAlias")
+
+$Global:custom_aliases_path = "$($profile)\..\custom_aliases.txt"
+$Global:toc_default = "$($profile)\..\toc_default.txt"
+$Global:toc_aliases = "$($profile)\..\toc_aliases.txt"
+$Global:toc_params = "$($profile)\..\toc_params.txt"
+
+if (Test-Path $custom_aliases_path) {
+  Import-Alias $custom_aliases_path -Scope Global -ErrorAction Ignore
+}
+
+Show-CustomHelp
