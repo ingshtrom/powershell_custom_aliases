@@ -82,12 +82,12 @@ Function Set-CustomAlias
     .PARAMETERS
       * (string) -type:
         - 0: create an alias and export to preserve this option for future sessions (command_name parameter needs to be defined as well)
-        - 1: create a "short-cut" to a certain file (usually a .bat or .exe) (filter and drive_letter parameters need to be defined as well)
+        - 1: create a "short-cut" to a certain file (usually a .bat or .exe) (filter and search_start parameters need to be defined as well)
         TODO: - 2: create a "macro" to a cmdlet that includes specific parameters to the cmdlet
       * (string) -alias_name: the new alias that links to the cmdlet or file
       * (string) -command_name: the cmdlet that the alias points to
       * (string) -filter: when searching (type:1 only), the keyword to search on.  Wildcards are defined as '*'
-      * (string) -drive_letter: the drive to search on (defaults to all "FileSystem" drives, which includes mapped network drives)
+      * (string) -search_start: the directory path to start the search at
       TODO: allow specifying directory paths as well as drive letters for the beginning of the search
     .NOTES
       * when tested on my machine with Powershellv3, Windows 8 (you can see the rest at my site http://ingshtrom.tumblr.com/pc-spec),
@@ -99,13 +99,12 @@ Function Set-CustomAlias
     [string]$alias_name = $(Read-Host "What will be the alias name?"),
     [string]$command_name,
     [string]$filter,
-    [string]$drive_letter
+    [string]$search_start
   )
 
   # answer the customer's every need until the CPU melts or they say stop
   $is_finished = $false
   do {
-    #while loop starts here
     if (([int]$type) -eq 0) {
       $command_name = $(Read-Host "What is the currently defined command?")
       Set-Alias $alias_name $command_name
@@ -113,40 +112,41 @@ Function Set-CustomAlias
       Write-Host "You can now use '$($alias_name)' in place of '$($command_name)' while running PowerShell"
       Write-Host "May the force be with you..."
       Export-Alias -Path $custom_aliases_path
-      Add-CustomAliasInfo -alias_name $alias_name -command_name $command_name
+      Add-CustomAliasInfo -alias_name $alias_name -command_name $command_name -section "aliases"
       Restart-Shell
     } else if (([int]$type) -eq 1) {
       $filter = $(Read-Host "What keyword should we use to filter the search? (you can use * as wildcard)")
-      $drive_letter = $(Read-Host "Enter a drive letter to search(~15s for 380GB) or press [Enter] to search all available drives (this may take a loooong time)")
+      $search_start = $(Read-Host "Enter a place to start the search at (press [Enter] to search 'C:\'.")
       # getting the drives to search on
-      $drives = Get-PSDrive
+      $search_starting_points = @()
+      $search_starting_points += "C:\"
       if ($drive_letter -ne "") {
-        $drives = @("$drive_letter")
+        $drives = @("$search_start")
       }
 
-      $file_system_drives = @()
-      if ($drives[0].GetType().Name -eq "String") {
-        $file_system_drives = $drives
-      } else {
-        $drives = Get-PSDrive
-        foreach ($drive in $drives) {
-          if ($drive.Provider.ToString() -eq "Microsoft.PowerShell.Core\FileSystem") {
-            $file_system_drives += $drive
-          }
-        }
-      }
+      # $file_system_drives = @()
+      # if ($drives[0].GetType().Name -eq "String") {
+      #   $file_system_drives = $drives
+      # } else {
+      #   $drives = Get-PSDrive
+      #   foreach ($drive in $drives) {
+      #     if ($drive.Provider.ToString() -eq "Microsoft.PowerShell.Core\FileSystem") {
+      #       $file_system_drives += $drive
+      #     }
+      #   }
+      # }
 
-      $drive = $null
+      $search_path = $null
 
       # searching the drives recursively
-      Write-Host "Searching $($file_system_drives) for '$filter'..........."
+      Write-Host "Searching $($search_starting_points) for '$filter'..........."
       $possible_matches = @()
-      foreach ($drive in $file_system_drives) {
-        Write-Host "Searching Drive $($drive): ......"
+      foreach ($search_path in $search_starting_points) {
+        Write-Host "Searching in $($search_path): ......"
         $start = Get-Date -Verbose
-        $result = Get-ChildItem -Path "$($drive):\" -Filter $filter -Recurse -ErrorAction SilentlyContinue
+        $result = Get-ChildItem -Path "$($search_path)" -Filter $filter -Recurse -ErrorAction SilentlyContinue
         $end = Get-Date -Verbose
-        Write-Host "Search on drive '$($drive)' took this long: $($end - $start)"
+        Write-Host "Search in '$($search_path)' took this long: $($end - $start)"
         if ($result -ne $null) {
           foreach ($match in $result) {
             $possible_matches += $match.FullName
@@ -180,8 +180,7 @@ Function Set-CustomAlias
         Write-Host "You can now use '$($alias_name)' in place of '$($alias_path)' while running PowerShell"
         Write-Host "May the force be with you..."
         Export-Alias $custom_aliases_path
-        Add-CustomAliasInfo -alias_name $alias_name -command_name $alias_path
-        Restart-Shell
+        Add-CustomAliasInfo -alias_name $alias_name -command_name $alias_path -section "aliases"
       }
     }
 
@@ -211,6 +210,7 @@ Function Set-CustomAlias
       }
     }
   } while ($is_finished -eq $false)
+  Restart-Shell
 }
 
 Function Restart-Shell
@@ -228,6 +228,35 @@ Function Restart-Shell
   #>
   PROCESS {
     Restart-Process -process "powershell"
+  }
+}
+
+Function Display-YesNoQuestion
+{
+  <#
+
+  #>
+  params {
+    [parameter(Mandatory=$true)]
+    [string]$title,
+
+    [parameter(Mandatory=$true)]
+    [string]$question,
+
+    [parameter(Mandatory=$true)]
+    [string]$answer_yes,
+
+    [parameter(Mandatory=$true)]
+    [string]$answer_no,
+
+
+  }
+  PROCESS {
+    $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", $answer_yes
+    $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No", $answer_no
+    $options = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
+    $result = $host.ui.PromptForChoice($title, $question, $options, 0)
+    return $result
   }
 }
 
