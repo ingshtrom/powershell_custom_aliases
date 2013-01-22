@@ -15,7 +15,7 @@ Function __install
   $new_lines += "Import-Module `"$($profile)\..\Modules\powershell_custom_aliases.psm1`" -Global"
   $new_lines += "_init"
 
-  if ($found_module_v2 -AND $found_module_v3 -AND $found_table_of_contents) {
+  # if ($found_module_v2 -AND $found_module_v3 -AND $found_table_of_contents) {
 
     # copy the table of contents over
     Write-Host "Moving powershell_custom_table_of_contents.txt....."
@@ -55,10 +55,30 @@ Function __install
       Stop-Process $current_powershell
     }
 
-  } else {
-    Write-Error "Couldn't find all of the necessary files in this directory."
-    Write-Host ""
-    Write-Host "Make sure that this installer is run from the same directory as the module and table of contents."
+  # } else {
+  #   Write-Error "Couldn't find all of the necessary files in this directory."
+  #   Write-Host ""
+  #   Write-Host "Make sure that this installer is run from the same directory as the module and table of contents."
+  # }
+}
+
+Function _better-install
+{
+  $toc_default_object = [psobject] @{
+    file_path = "$($profile)\..\toc_default.txt";
+    name = "toc_default.txt";
+    description = "All of the defeault cmdlets that come standard with this module"
+  }
+}
+
+function _create_file
+{
+  [cmdletbinding()]
+  param(
+    [parameter(Mandatory=$true] [psobject] $object
+  )
+  process {
+
   }
 }
 
