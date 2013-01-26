@@ -10,6 +10,7 @@
   if you are lost, search for "LAST_WORK"
 #>
 
+## DONE
 function PCA-ShowCustomHelp
 {
   <#
@@ -17,11 +18,22 @@ function PCA-ShowCustomHelp
       Shows the table of contents (or just certain sections) for the PowershellCustomAliases module
 hello person1
   #>
-  [cmdletbinding()]
-  param (
+  [CmdletBinding()]
+  PARAM (
     [string]$type = "all"
   )
+  BEGIN {
+    Write-Verbose "BEGIN : PCA-ShowCustomHelp"
+  }
   PROCESS {
+    Write-Verbose "Checking the `$type for invalid values"
+    if ($type -eq "all" -or $type -eq "default" -or $type -eq "macros" -or $type -eq "aliases" -or $type -eq "variables") {
+      Write-Verbose "The value for `$type is valid"
+    } else {
+      Write-Warning "The value for the `$type parameter must be one of the following values: `$null, 'default', 'variables', 'aliases', 'macros'."
+      Write-Host "The function will continue and assume `$type='all'"
+      $type = "all"
+    }
     Write-Host ""
     Write-Host ":BEGIN"
     Write-Host ""
@@ -31,6 +43,9 @@ hello person1
     Write-Host ""
     Write-Host ":END"
     Write-Host ""
+  }
+  END {
+    Write-Verbose "END : PCA-ShowCustomHelp"
   }
 }
 
@@ -43,7 +58,7 @@ function PCA-SetCustomAlias
     .NOTES
     when tested on my machine with Powershellv3, Windows 8 (you can see the rest at my site http://ingshtrom.tumblr.com/pc-spec), the speed of the file search was ~17seconds to 400GB of data on a single disk
     I strongly suggest NOT searching for your file on network drives, this can take longer than trying to get help from Microsoft Custom Service center :P
-    .RELATED LINKS
+    .LINK
     What my PC setup is: http://ingshtrom.tumblr.com/pc-spec
   #>
   [cmdletbinding()]
@@ -54,6 +69,9 @@ function PCA-SetCustomAlias
     [string] $filter,
     [string] $search_start
   )
+  BEGIN {
+    Write-Verbose "BEGIN : PCA-SetCustomAlias"
+  }
   process {
     # answer the customer's every need until the CPU melts or they say stop
     $is_finished = $false
@@ -152,6 +170,9 @@ function PCA-SetCustomAlias
     } while ($is_finished -eq $false)
     PCA-RestartShell
   }
+  END {
+    Write-Verbose "END : PCA-SetCustomAlias"
+  }
 }
 
 function PCA-RestartShell
@@ -167,10 +188,16 @@ function PCA-RestartShell
       * this is useful for reloading the custom alias file
       * flags supported: -verbose, -debug
   #>
-  [cmdletbinding()]
-  param ()
-  process {
+  [CmdletBinding()]
+  PARAM ()
+  BEGIN {
+    Write-Verbose "BEGIN : PCA-RestartShell"
+  }
+  PROCESS {
     PCA-RestartProcess -process "powershell"
+  }
+  END {
+    Write-Verbose "END : PCA-RestartShell"
   }
 }
 
@@ -180,11 +207,14 @@ function PCA-RestartProcess
     .PARAMETERS
       * [Mandatory] [string] -process: the name of the process to restart
   #>
-  [cmdletbinding()]
-  param (
+  [CmdletBinding()]
+  PARAM (
     [parameter(Mandatory=$true)] [string] $process
   )
-  process {
+  BEGIN {
+    Write-Verbose "BEGIN : PCA-RestartProcess"
+  }
+  PROCESS {
     WriteVerbose "Searching for the $($process) process..."
     $current_process = Get-Process -Name
     WriteVerbose "Found the $($process) process!"
@@ -193,6 +223,9 @@ function PCA-RestartProcess
     Start-Process $process
     WriteVerbose "Started the process"
     Stop-Process $current_powershell
+  }
+  END {
+    Write-Verbose "END : PCA-RestartProcess"
   }
 }
 
@@ -334,36 +367,48 @@ function PCA-SearchCustomAliasInfo
 }
 
 # private function used only in Show-CustomHelp
+## DONE
 function __displayCustomHelp
 {
   [cmdletbinding()]
   param (
     [string] $type = "all"
   )
-
-  # figure out which sections should be displayed
-  $file_paths = @()
-  if ($type -eq "default") {
-    $file_paths += $toc_default
-  } elseif ($type -eq "aliases") {
-    $file_paths += $toc_aliases
-  } elseif ($type -eq "variables") {
-    $file_paths += $toc_variables
-  } elseif ($type -eq "macros") {
-    $file_paths += $toc_macros
-  } else {
-    $file_paths += $toc_default
-    $file_paths += $toc_aliases
-    $file_paths += $toc_macros
-    $file_paths += $toc_variables
+  begin {
+    Write-Verbose "BEGIN : __displayCustomHelp"
   }
-
-  # display the sections in $file_paths
-  foreach ($file_path in $file_paths) {
-    $file = Get-Content $file_path
-    foreach ($line in $file) {
-      Write-Host $line
+  process {
+    Write-Verbose "__displayCustomHelp START!"
+    Write-Verbose "Figure out which sections should be displayed"
+    $file_paths = @()
+    if ($type -eq "default" -or $type -eq "all") {
+      Write-Verbose "Adding `$toc_default"
+      $file_paths += $toc_default
     }
+    if ($type -eq "aliases" -or $type -eq "all") {
+      Write-Verbose "Adding `$toc_aliases"
+      $file_paths += $toc_aliases
+    }
+    if ($type -eq "variables" -or $type -eq "all") {
+      Write-Verbose "Adding `$toc_variables"
+      $file_paths += $toc_variables
+    }
+    if ($type -eq "macros" -or $type -eq "all") {
+      Write-Verbose "Adding `$toc_macros"
+      $file_paths += $toc_macros
+    }
+
+    Write-Verbose "Display the sections that were found from the previous step"
+    foreach ($file_path in $file_paths) {
+      $file = Get-Content $file_path
+      foreach ($line in $file) {
+        Write-Host $line
+      }
+    }
+   Write-Verbose "__displayCustomHelp END!"
+  }
+  end {
+    Write-Verbose "END : __displayCustomHelp"
   }
 }
 
@@ -418,12 +463,18 @@ function __displayYesNoQuestion
     [parameter(Mandatory=$true)]
     [string]$answer_no
   )
+  begin {
+    Write-Verbose "BEGIN : __displayYesNoQuestion"
+  }
   process {
     $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", $answer_yes
     $no = New-Object System.Management.Automation.Host.ChoiceDescription "&No", $answer_no
     $options = [System.Management.Automation.Host.ChoiceDescription[]]($yes, $no)
     $result = $host.ui.PromptForChoice($title, $question, $options, 0)
     return $result
+  }
+  end {
+    Write-Verbose "END : __displayYesNoQuestion"
   }
 }
 
