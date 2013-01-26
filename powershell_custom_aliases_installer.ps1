@@ -1,142 +1,116 @@
 ## powershell_custom_aliases_installer.ps1 ##
 
-$custom_aliases_path = "$($profile)\..\Modules\custom_aliases.txt"
-$custom_variables_path = "$($profile)\..\Modules\custom_variables.txt"
-$custom_macros_path = "$($profile)\..\Modules\custom_macros.txt"
-$toc_default = "$($profile)\..\toc_default.txt"
-$toc_aliases = "$($profile)\..\toc_aliases.txt"
-$toc_macros = "$($profile)\..\toc_variables.txt"
-$toc_variables = "$($profile)\..\toc_variables.txt"
-
-Function __install
-{
-  # # make sure we have all of the files we need
-  # $found_module_v3 = Test-Path .\powershell_custom_aliases_v3x.psm1
-  # $found_module_v2 = Test-Path .\powershell_custom_aliases_v2x.psm1
-  # $found_table_of_contents = Test-Path .\powershell_custom_table_of_contents.txt
-  # $found_profile = Test-Path $profile
-  # $found_modules = Test-Path "$($profile)\..\..\Modules"
-  # $_psVersion = $PSVersionTable.PSVersion.Major
-
-  # $new_lines = @()
-  # $new_lines += "Import-Module `"$($profile)\..\Modules\powershell_custom_aliases.psm1`" -Global"
-  # $new_lines += "_init"
-
-  # if ($found_module_v2 -AND $found_module_v3 -AND $found_table_of_contents) {
-
-    # copy the table of contents over
-    Write-Host "Moving powershell_custom_table_of_contents.txt....."
-    if ($found_profile) {
-      Copy-Item -Path .\powershell_custom_table_of_contents.txt -Destination "$($profile)\..\powershell_custom_table_of_contents.txt" -Force
-    } else {
-      New-Item -Path $profile -ItemType File -Force
-      Copy-Item -Path .\powershell_custom_table_of_contents.txt -Destination "$($profile)\..\powershell_custom_table_of_contents.txt" -Force
-    }
-
-    # copy the module file to the powershell modules directory
-    $module_file_name = "powershell_custom_aliases_v3x.psm1"
-    if ($_psVersion -eq 2) {
-      $module_file_name = "powershell_custom_aliases_v2x.psm1"
-    }
-    Write-Host "Moving $($module_file_name)....."
-    if ($found_modules) {
-      Copy-Item -Path ".\$($module_file_name)" -Destination "$($profile)\..\Modules\powershell_custom_aliases.psm1" -Force
-    } else {
-      New-Item -Path "$($profile)\..\Modules\powershell_custom_aliases.psm1" -ItemType File -Force
-    }
-
-    # set the profile with the correct commands to start everything when powershell.exe starts
-    Write-Host "Updating your profile with startup commands....."
-    Add-Content -Path $profile -Value $new_lines
-
-    Write-Host "Installation Complete!"
-    Read-Host "Please press [Enter] to finalize the installation.  Powershell will restart."
-
-    # restart shell
-    $current_powershell = Get-Process powershell
-    Start-Process powershell
-    if ($_psVersion -eq 2) {
-      Stop-Process $current_powershell.Id
-    } else {
-      Stop-Process $current_powershell
-    }
-
-  # } else {
-  #   Write-Error "Couldn't find all of the necessary files in this directory."
-  #   Write-Host ""
-  #   Write-Host "Make sure that this installer is run from the same directory as the module and table of contents."
-  # }
-}
+$module_directory = "$($profile)\..\Modules"
+$module_destination_path = "$($module_directory)\powershell_custom_aliases.psm1"
+$custom_aliases_path = "$($module_directory)\custom_aliases.txt"
+$custom_variables_path = "$($module_directory)\custom_variables.txt"
+$custom_macros_path = "$($module_directory)\custom_macros.txt"
+$toc_default = "$($module_directory)\toc_default.txt"
+$toc_aliases = "$($module_directory)\toc_aliases.txt"
+$toc_macros = "$($module_directory)\toc_macros.txt"
+$toc_variables = "$($module_directory)\toc_variables.txt"
 
 Function _better-install
 {
   [cmdletbinding()]
   param()
   process {
-    Import-Module ".\powershell_custom_aliases.psm1" -Global
-
     Write-Verbose "Creating lines to insert into $($profile)"
     $new_lines = @()
-    $new_lines += "Import-Module `"$($profile)\..\Modules\powershell_custom_aliases.psm1`" -Global"
-    $new_lines += "_init"
+    $new_lines += "Import-Module $($module_destination_path) -Global -WarningAction SilentlyContinue"
+    $new_lines += "PCA-ShowCustomHelp"
+
+    Write-Verbose "Checking for the $($module_directory) directory"
+    $found_directory = Test-Path $module_directory
+    if ($found_directory -eq $false) {
+      Write-Verbose "Couldn't find a modules directory, creating one now"
+      New-Item -Path $module_directory -ItemType directory -Force
+    }
+
+    Write-Verbose "Checking for a $($profile) file"
+    $found_profile = Test-Path $profile
+    if ($found_profile -eq $false) {
+      Write-Verbose "Couldn't find a PowerShell profile, creating one now"
+      New-Item -Path $profile -ItemType file -Force
+    }
+    Write-Verbose "Adding commands to import this module to the current PowerShell profile"
+    __add_module_import_to_profile $new_lines
 
     Write-Verbose "Creating objects for file creation."
     $toc_default_object = [psobject] @{
-      file_path = "$($profile)\..\toc_default.txt";
+      file_path = $toc_default
       file_contents = @(
-        "===================================";
-        "DEFAULT:";
-        "===================================";
-        "  * PCA-SetCustomAlias : same as Set-Alias, but includes session-to-session persistance";
-        "  * PCA-RestartShell : terminates this powershell instance and creates a new one";
-        "  * PCA-ShowCustomHelp : displays this help screen";
-        "  * PCA-RestartProcess : restarts the given process";
-        "  * PCA-AddCustomAliasInfo : adds a line to the Table of Contents";
-        "  * PCA-RemoveCustomAliasInfo : removes a line from the Table of Contents";
-        "";
+        "==================================="
+        "DEFAULT:"
+        "==================================="
+        "  * PCA-SetCustomAlias : same as Set-Alias, but includes session-to-session persistance"
+        "  * PCA-RestartShell : terminates this powershell instance and creates a new one"
+        "  * PCA-ShowCustomHelp : displays this help screen"
+        "  * PCA-RestartProcess : restarts the given process"
+        "  * PCA-AddCustomAliasInfo : adds a line to the Table of Contents"
+        "  * PCA-RemoveCustomAliasInfo : removes a line from the Table of Contents"
+        ""
       )
-    };
+    }
     $toc_aliases_object = [psobject] @{
-      file_path = "$($profile)\..\toc_aliases.txt";
+      file_path = $toc_aliases
       file_contents = @(
-        "===================================";
-        "ALIASES:";
-        "===================================";
-        "";
+        "==================================="
+        "ALIASES:"
+        "==================================="
+        ""
       )
     }
     $toc_macros_object = [psobject] @{
-      file_path = "$($profile)\..\toc_macros.txt";
+      file_path = $toc_macros
       file_contents = @(
-        "===================================";
-        "MACROS:";
-        "===================================";
-        "";
+        "==================================="
+        "MACROS:"
+        "==================================="
+        ""
       )
     }
     $toc_variables_object = [psobject] @{
-      file_path = "$($profile)\..\toc_variables.txt";
+      file_path = $toc_variables
       file_contents = @(
-        "===================================";
-        "VARIABLES:";
-        "===================================";
-        "  * `$custom_aliases_path : $($custom_aliases_path)";
-        "  * `$custom_params_path : $($custom_params_path)";
-        "  * `$custom_macros_path : $($custom_macros_path)";
-        "  * `$toc_default : $($toc_default)";
-        "  * `$toc_aliases : $($toc_aliases)";
-        "  * `$toc_variables : $($toc_variables)";
-        "";
-      );
+        "==================================="
+        "VARIABLES:"
+        "==================================="
+        "  * `$custom_aliases_path : $($custom_aliases_path)"
+        "  * `$custom_variables_path : $($custom_variables_path)"
+        "  * `$custom_macros_path : $($custom_macros_path)"
+        "  * `$toc_default : $($toc_default)"
+        "  * `$toc_aliases : $($toc_aliases)"
+        "  * `$toc_variables : $($toc_variables)"
+        ""
+      )
+    }
+    $custom_aliases_object = @{
+      file_path = $custom_aliases_path
+      file_contents = @("")
+    }
+    $custom_variables_object = @{
+      file_path = $custom_variables_path
+      file_contents = @("")
+    }
+    $custom_macros_object = @{
+      file_path = $custom_macros_path
+      file_contents = @("")
     }
     Write-Verbose "Creating files."
     _create_file $toc_default_object
     _create_file $toc_aliases_object
     _create_file $toc_macros_object
     _create_file $toc_variables_object
+    _create_file $custom_aliases_object
+    _create_file $custom_variables_object
+    _create_file $custom_macros_object
     Write-Verbose "Moving module file over"
+    Copy-Item -Path ".\powershell_custom_aliases.psm1" -Destination $module_destination_path -Force
     Write-Verbose "Restarting Powershell."
-    PCA-RestartShell
+    $current_powershell = Get-Process powershell
+    Start-Process powershell
+    Stop-Process $current_powershell
   }
 }
 
@@ -144,12 +118,43 @@ function _create_file
 {
   [cmdletbinding()]
   param(
-    [parameter(Mandatory=$true] [psobject] $object
+    [parameter(Mandatory=$true)] [psobject] $object
   )
   process {
-    New-Item -path $object.file_path -itemtype file -force;
-    Set-Content $object.file_path $object.file_contents;
+    New-Item -path $object.file_path -itemtype file -force
+    Set-Content $object.file_path $object.file_contents
   }
 }
 
-__install
+function __add_module_import_to_profile
+{
+  [cmdletbinding()]
+  param (
+    [parameter(Mandatory=$true)] [string[]] $new_lines
+  )
+  $profile_contents = Get-Content $profile
+  $new_profile_contents = @()
+  ## we can do this since we know there are only two lines
+  $found_match = $false
+  Write-Verbose "Searching for old import statements for this module"
+  foreach ($line in $profile_contents) {
+    foreach ($new_line in $new_lines)
+    {
+      if ($new_line -eq $line) {
+        $found_match = $true
+      }
+    }
+    if ($found_match -eq $false) {
+      $new_profile_contents += $line
+    }
+    $found_match = $false
+  }
+  Write-Verbose "Appending import statements to the PowerShell profile"
+  $new_line = $null
+  foreach ($new_line in $new_lines) {
+    $new_profile_contents += $new_line
+  }
+  Set-Content -Path $profile -Value $new_profile_contents -Force
+}
+
+_better-install

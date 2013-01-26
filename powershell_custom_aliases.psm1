@@ -13,17 +13,9 @@
 function PCA-ShowCustomHelp
 {
   <#
-    .PURPOSE
-      * Shows the table of contents (or just certain sections) for the PowershellCustomAliases module
-    .PARAMETERS
-      * [string] -type
-        - [default] "all": shows the whole table of contents help
-        - "default": shows the default functions/cmdlets that are available
-        - "params": shows all custom global parameters currently available
-        - "aliases": shows all custom aliases currently available
-    .RETURN
-      * [void]
-    .NOTES
+    .SYNOPSIS
+      Shows the table of contents (or just certain sections) for the PowershellCustomAliases module
+hello person1
   #>
   [cmdletbinding()]
   param (
@@ -45,28 +37,18 @@ function PCA-ShowCustomHelp
 function PCA-SetCustomAlias
 {
   <#
-    .PURPOSE
+    .SYNOPSIS
       * To create a new alias that serves as a "short-cut" to something else
-    .PARAMETERS
-      * (string) -type:
-        - 0: create an alias and export to preserve this option for future sessions (command_name parameter needs to be defined as well)
-        - 1: create a "short-cut" to a certain file (usually a .bat or .exe) (filter and search_start parameters need to be defined as well)
-        TODO: - 2: create a "macro" to a cmdlet that includes specific parameters to the cmdlet
-      * (string) -alias_name: the new alias that links to the cmdlet or file
-      * (string) -command_name: the cmdlet that the alias points to
-      * (string) -filter: when searching (type:1 only), the keyword to search on.  Wildcards are defined as '*'
-      * (string) -search_start: the directory path to start the search at
       TODO: allow specifying directory paths as well as drive letters for the beginning of the search
-    .RETURN
-      * [void]
     .NOTES
-      * when tested on my machine with Powershellv3, Windows 8 (you can see the rest at my site http://ingshtrom.tumblr.com/pc-spec),
-          the speed of the file search was ~17seconds to 400GB of data on a single disk
-      * I strongly suggest NOT searching for your file on network drives, this can take longer than trying to get help from Microsoft Custom Service center :P
+    when tested on my machine with Powershellv3, Windows 8 (you can see the rest at my site http://ingshtrom.tumblr.com/pc-spec), the speed of the file search was ~17seconds to 400GB of data on a single disk
+    I strongly suggest NOT searching for your file on network drives, this can take longer than trying to get help from Microsoft Custom Service center :P
+    .RELATED LINKS
+    What my PC setup is: http://ingshtrom.tumblr.com/pc-spec
   #>
   [cmdletbinding()]
   param (
-    [string] $type = $(Read-Host "Please enter the type of alias you want to create (0: Using an already defined cmdlet. 1: Search for a specific file path.")
+    [string] $type = $(Read-Host "Please enter the type of alias you want to create (0: Using an already defined cmdlet. 1: Search for a specific file path)."),
     [string] $alias_name = $(Read-Host "What will be the alias name?"),
     [string] $command_name,
     [string] $filter,
@@ -84,7 +66,7 @@ function PCA-SetCustomAlias
         Write-Host "May the force be with you..."
         Export-Alias -Path $custom_aliases_path
         Add-CustomAliasInfo -alias_name $alias_name -command_name $command_name -section "aliases"
-      } else if (([int]$type) -eq 1) {
+      } elseif (([int]$type) -eq 1) {
         $filter = $(Read-Host "What keyword should we use to filter the search? (you can use * as wildcard)")
         $search_start = $(Read-Host "Enter a place to start the search at (press [Enter] to search 'C:\'.")
         # getting the drives to search on
@@ -234,7 +216,7 @@ function PCA-AddCustomAliasInfo
     [string] $section = $(Read-Host "What section should this be added to ('aliases', 'params', 'default')?")
   )
   begin {
-    WriteVerbose "Finding the file for the section specified";
+    WriteVerbose "Finding the file for the section specified"
   }
   process {
     WriteVerbose "Creating the line to add to the Table of Contents"
@@ -362,15 +344,18 @@ function __displayCustomHelp
   # figure out which sections should be displayed
   $file_paths = @()
   if ($type -eq "default") {
-    $file_paths += $toc_default;
+    $file_paths += $toc_default
   } elseif ($type -eq "aliases") {
-    $file_paths += $toc_aliases;
-  } elseif ($type -eq "params") {
-    $file_paths += $toc_params;
+    $file_paths += $toc_aliases
+  } elseif ($type -eq "variables") {
+    $file_paths += $toc_variables
+  } elseif ($type -eq "macros") {
+    $file_paths += $toc_macros
   } else {
-    $file_paths += $toc_default;
-    $file_paths += $toc_aliases;
-    $file_paths += $toc_params;
+    $file_paths += $toc_default
+    $file_paths += $toc_aliases
+    $file_paths += $toc_macros
+    $file_paths += $toc_variables
   }
 
   # display the sections in $file_paths
@@ -387,9 +372,9 @@ function __tocMap
 {
   [cmdletbinding()]
   [outputtype([string[]])]
-  params {
+  param (
     [parameter(Mandatory=$true)] [string] $section
-  }
+  )
   process {
     $return_value = @()
     switch($section) {
@@ -431,7 +416,7 @@ function __displayYesNoQuestion
     [string]$answer_yes,
 
     [parameter(Mandatory=$true)]
-    [string]$answer_no,
+    [string]$answer_no
   )
   process {
     $yes = New-Object System.Management.Automation.Host.ChoiceDescription "&Yes", $answer_yes
@@ -443,19 +428,18 @@ function __displayYesNoQuestion
 }
 
 $custom_aliases_path = "$($profile)\..\Modules\custom_aliases.txt"
-$custom_params_path = "$($profile)\..\Modules\custom_params.txt"
+$custom_variables_path = "$($profile)\..\Modules\custom_variables.txt"
 $custom_macros_path = "$($profile)\..\Modules\custom_macros.txt"
-$toc_default = "$($profile)\..\toc_default.txt"
-$toc_aliases = "$($profile)\..\toc_aliases.txt"
-$toc_params = "$($profile)\..\toc_params.txt"
+$toc_default = "$($profile)\..\Modules\toc_default.txt"
+$toc_aliases = "$($profile)\..\Modules\toc_aliases.txt"
+$toc_macros = "$($profile)\..\Modules\toc_macros.txt"
+$toc_variables = "$($profile)\..\Modules\toc_variables.txt"
 
 # don't export everything!
 # everything with a double underscore will be "private" to the module
 Export-ModuleMember -function @("PCA-ShowCustomHelp", "PCA-SetCustomAlias", "PCA-RestartShell", "PCA-RestartProcess", "PCA-AddCustomAliasInfo", "PCA-RemoveCustomAliasInfo")
-Export-ModuleMember -variable @("custom_aliases_path", "custom_params_path", "custom_macros_path", "toc_default", "toc_aliases", "toc_params")
+Export-ModuleMember -variable @("custom_aliases_path", "custom_variables_path", "custom_macros_path", "toc_default", "toc_aliases", "toc_variables", "toc_macros")
 
 if (Test-Path $custom_aliases_path) {
   Import-Alias $custom_aliases_path -Scope Global -ErrorAction Ignore
 }
-
-Show-CustomHelp
