@@ -1,13 +1,12 @@
 ## powershell_custom_aliases_v3x.psm1 ##
 <#
 
-  TODO: rewrite some of the cmdlet-bindings so that they are up to Powershell Cmdlet standards.
+  [TODO]: rewrite some of the cmdlet-bindings so that they are up to Powershell Cmdlet standards.
     - verbose, error-reporting, etc. options supported
-  TODO: support global parameter aliases
-  TODO: optimize the searhing in Set-CustomAlias (maybe some sort of background processing as results come in and are displayed right away)
-
-
-  if you are lost, search for "LAST_WORK"
+  [TODO]: support global parameter aliases
+  [TODO]: optimize the searhing in Set-CustomAlias (maybe some sort of background processing as results come in and are displayed right away)
+  [TODO] add Verbose statements
+  search for "ASSUME" to find assumptions that need to be removed as assumptions and implemented as code
 #>
 
 ## DONE
@@ -16,7 +15,6 @@ function PCA-ShowCustomHelp
   <#
     .SYNOPSIS
       Shows the table of contents (or just certain sections) for the PowershellCustomAliases module
-hello person1
   #>
   [CmdletBinding()]
   PARAM (
@@ -49,25 +47,70 @@ hello person1
   }
 }
 
-function PCA-SetCustomAlias
+function PCA-CreateAlias
 {
   <#
     .SYNOPSIS
-      * To create a new alias that serves as a "short-cut" to something else
+      To create a new alias that serves as a "short-cut" to something else
       TODO: allow specifying directory paths as well as drive letters for the beginning of the search
+    .PARAMETER type
+      The type of alias you are creating.
+        (1) alias/cmdlet/function -> alias : pretty simple. ex. mstsc -> rdp would result in the ability to do "rdp /v:machine_name"
+        (2) file -> alias : usually .bat|.exe extensions ex. "C:\Users\user_name\Desktop\firefox.exe" -> firefox would let you type "firefox" to run "firefox.exe" from any location
+        [TODO] (3) script block -> alias : if you need multiple lines, use ';' (semicolon) at the end of statements.  so { mstsc /v:machine_name; } -> rdp would result in saying "rdp" to run that command with parameters
+        [TODO] (4) object/variable -> variable : ex. "C:\Users\user_name\Desktop" -> desktop would result in the ability to say "Set-Location $desktop"
+    .PARAMETER alias
+      The name of the alias that you are creating (or the variable if type == 4)
+    .PARAMETER command
+      The name of the command that the $alias will point to  (only used in type 1)
+    .PARAMETER filter
+      The search filter for when you are looking for a file (only used in type 2)
+    .PARAMETER search_start
+      [default] = "C:\"
+      The directory path from which to start the search. This can range from general--"C:\"--to precise--"C:\Program Files\company\product\" (only used in type 2)
+    .PARAMETER script
+      The script block that will be run whenever $alias is called from Powershell
+    .PARAMETER variable
+      The value of the variable that is being pointed to by $alias (only used in type 4)
+      This only supports string values at the moment. See the [NOTES] section for contact information to submit feature requests
     .NOTES
-    when tested on my machine with Powershellv3, Windows 8 (you can see the rest at my site http://ingshtrom.tumblr.com/pc-spec), the speed of the file search was ~17seconds to 400GB of data on a single disk
-    I strongly suggest NOT searching for your file on network drives, this can take longer than trying to get help from Microsoft Custom Service center :P
+      When tested on my machine with Powershellv3, Windows 8, the speed of the file search was ~17seconds to 400GB of data on a single disk
+      I strongly suggest NOT searching for your file on network drives, this can take longer than trying to get help from Microsoft Custom Service center :P
+      When creating this module, I was aiming for it to be used as a bridge between novices and expert PowerShell users.  As such, there is lack of functionality in places.  If you would like more functionality, contact me on GitHub (ingshtrom) and create an issue in this repo.
+      When using this Cmdlet, it is NOT always necessary to use quotation marks around each parameter passed in.  The same rules apply here as they do in the rest of PowerShell
     .LINK
-    What my PC setup is: http://ingshtrom.tumblr.com/pc-spec
+      What my PC setup is: http://ingshtrom.tumblr.com/pc-spec for performance comparison
+    .EXAMPLE
+      PCA-CreateAlias
+      This will walk you through the creation process and make sure you have input all the necessary variables.
+    .EXAMPLE
+      PCA-CreateAlias -type 1 -alias rdp -command mstsc
+      This will create an alias that lets you type "rdp -v machine_name" rather than "mstsc -v machine_name"
+    .EXAMPLE
+      PCA-CreateAlias -type 2 -alias "st" -filter "sublime_text*" -search_start "C:\"
+      This will search recursively, starting at $search_start, using the $filter and then display the results.  You will then need to enter a number matching the correct file to bind the alias to.
+      The $filter can use the asterisk "*" as an unlimited wildcard.  The regular expression equivalent is ".*" (dot asterisk)
+    .EXAMPLE
+      PCA-CreateAlias -type 2 -alias "st" -filter "sublime_text*"
+      The same as above, except that the search starts at "C:\" (default).
+    .EXAMPLE
+      PCA-CreateAlias -type 3 -alias "rdp_machine" -script "{ mstsc /v:machine_name; }"
+      This will create a binding where typing "rdp_machine" at the PowerShell prompt will actually run the code entered for the $script parameter.
+      Note that the $script variable needs to be entered as a [string], not an actual script block object.
+    .EXAMPLE
+      PCA-CreateAlias -type 4 -alias "desktop" -variable "C:\Users\user_name\Desktop"
+      This creates a global variable that can be used just like any other variable.
+      The PowerShell equivalent would be to type this line every time PowerShell started: "GLOBAL:$desktop = `"C:\Users\user_name\Desktop`"".
   #>
-  [cmdletbinding()]
+  [CmdletBinding()]
   param (
-    [string] $type = $(Read-Host "Please enter the type of alias you want to create (0: Using an already defined cmdlet. 1: Search for a specific file path)."),
-    [string] $alias_name = $(Read-Host "What will be the alias name?"),
-    [string] $command_name,
+    [string] $type = $(Read-Host "Please enter the type of alias you want to create (run 'Get-Help PCA-CreateAlias' for more information)."),
+    [string] $alias = $(Read-Host "What will be the alias name?"),
+    [string] $command,
     [string] $filter,
-    [string] $search_start
+    [string] $search_start,
+    [string] $script,
+    [string] $variable
   )
   BEGIN {
     Write-Verbose "BEGIN : PCA-SetCustomAlias"
@@ -76,15 +119,15 @@ function PCA-SetCustomAlias
     # answer the customer's every need until the CPU melts or they say stop
     $is_finished = $false
     do {
-      if (([int]$type) -eq 0) {
-        $command_name = $(Read-Host "What is the currently defined command?")
-        Set-Alias $alias_name $command_name
+      if (([int]$type) -eq 1) {     # cmdlet/function/alias -> alias
+        $command = $(Read-Host "What is the currently defined command?")
+        Set-Alias $alias $command
         Write-Host "Success!"
-        Write-Host "You can now use '$($alias_name)' in place of '$($command_name)' while running PowerShell"
+        Write-Host "You can now use '$($alias)' in place of '$($command)' while running PowerShell"
         Write-Host "May the force be with you..."
         Export-Alias -Path $custom_aliases_path
-        Add-CustomAliasInfo -alias_name $alias_name -command_name $command_name -section "aliases"
-      } elseif (([int]$type) -eq 1) {
+        Add-CustomAliasInfo -alias_name $alias -command_name $command -section "aliases"
+      } elseif (([int]$type) -eq 2) {   # file -> alias
         $filter = $(Read-Host "What keyword should we use to filter the search? (you can use * as wildcard)")
         $search_start = $(Read-Host "Enter a place to start the search at (press [Enter] to search 'C:\'.")
         # getting the drives to search on
@@ -133,13 +176,44 @@ function PCA-SetCustomAlias
           Write-Host "I'm sorry this didn't work. Maybe the file you are looking for...doesn't exist."
         } else {
           $alias_path = $possible_matches[$answer_number-1]
-          Set-Alias $alias_name $alias_path
+          Set-Alias $alias $alias_path
           Write-Host "Success!"
-          Write-Host "You can now use '$($alias_name)' in place of '$($alias_path)' while running PowerShell"
+          Write-Host "You can now use '$($alias)' in place of '$($alias_path)' while running PowerShell"
           Write-Host "May the force be with you..."
           Export-Alias $custom_aliases_path
-          Add-CustomAliasInfo -alias_name $alias_name -command_name $alias_path -section "aliases"
+          Add-CustomAliasInfo -alias_name $alias -command_name $alias_path -section "aliases"
         }
+      } elseif (([int]$type) -eq 3) {   # script block -> alias
+        # [ASSUME] the user ALWAYS has { } around the script block
+        # [ASSUME] the user hasn't already defined this alias, but with a different function
+        $new_macro = "Function $($alias) $($script)"
+        $current_macros = Get-Content $custom_macros_path
+        $macro_defined = $false
+        foreach ($macro in $current_macros) {
+          if ($macro -eq $new_macro) {
+            $macro_defined = $true
+          }
+        }
+        if ($macro_defined -eq $false) {
+          $current_macros += $new_macro
+        }
+        Set-Content -Path $custom_macros_path -Value $current_macros -Force
+      } elseif (([int]$type) -eq 4) {   # variable -> alias
+        # [ASSUME] the user only inputs strings for the value of the variable
+        $new_variable = "GLOBAL:`$$($alias) = $($variable)"
+        $current_variables = Get-Content $custom_variables_path
+        $variable_defined = $false
+        foreach ($variable in $current_variables) {
+          if ($variable -eq $new_variable) {
+            $variable_defined = $true
+          }
+        }
+        if ($variable_defined -eq $false) {
+          $current_variables += $new_variable
+        }
+        Set-Content -Path $custom_variables_path -Value $current_variables -Force
+      } else {
+        Write-Warning "You entered an invalid `$type option.  Please try again."
       }
 
       if ($is_finished -eq $false) {
@@ -160,7 +234,7 @@ function PCA-SetCustomAlias
           0 {
             $is_finished = $false
             $type = $(Read-Host "Please enter the type of alias you want to create (0: Using an already defined cmdlet. 1: Search for a specific file path.")
-            $alias_name = $(Read-Host "What will be the alias name?")
+            $alias = $(Read-Host "What will be the alias name?")
           }
           1 {
             $is_finished = $true
@@ -178,15 +252,13 @@ function PCA-SetCustomAlias
 function PCA-RestartShell
 {
   <#
-    .PURPOSE
-      * restarts the current powershell session
-    .PARAMETERS
-      * none
+    .SYNOPSIS
+      restarts the current powershell session
     .EXAMPLE
-      * PCA-RestartShell
+      PCA-RestartShell
     .NOTES
-      * this is useful for reloading the custom alias file
-      * flags supported: -verbose, -debug
+      this is useful for reloading the custom alias file
+      flags supported: -verbose, -debug
   #>
   [CmdletBinding()]
   PARAM ()
@@ -215,13 +287,13 @@ function PCA-RestartProcess
     Write-Verbose "BEGIN : PCA-RestartProcess"
   }
   PROCESS {
-    WriteVerbose "Searching for the $($process) process..."
+    Write-Verbose "Searching for the $($process) process..."
     $current_process = Get-Process -Name
-    WriteVerbose "Found the $($process) process!"
-    WriteDebug "process id: $($current_process) ."
-    WriteVerbose "Starting a new $($process) process..."
+    Write-Verbose "Found the $($process) process!"
+    Write-Debug "process id: $($current_process) ."
+    Write-Verbose "Starting a new $($process) process..."
     Start-Process $process
-    WriteVerbose "Started the process"
+    Write-Verbose "Started the process"
     Stop-Process $current_powershell
   }
   END {
@@ -244,25 +316,25 @@ function PCA-AddCustomAliasInfo
   #>
   [cmdletbinding()]
   param(
-    [parameter(Mandatory=$true)] [string] $alias_name = $(Read-Host "What will be the alias name for the entry?"),
-    [parameter(Mandatory=$true)] [string] $command_name = $(Read-Host "What is the command name for the entry?"),
+    [parameter(Mandatory=$true)] [string] $alias = $(Read-Host "What will be the alias name for the entry?"),
+    [parameter(Mandatory=$true)] [string] $command = $(Read-Host "What is the command name for the entry?"),
     [string] $section = $(Read-Host "What section should this be added to ('aliases', 'params', 'default')?")
   )
   begin {
-    WriteVerbose "Finding the file for the section specified"
+    Write-Verbose "Finding the file for the section specified"
   }
   process {
-    WriteVerbose "Creating the line to add to the Table of Contents"
-    $new_line = "  * $($alias_name) : $($command_name)"
+    Write-Verbose "Creating the line to add to the Table of Contents"
+    $new_line = "  * $($alias) : $($command)"
 
-    if (202 -eq $(Search-CustomAliasInfo -key $alias_name -file_path $custom_help_path -action "replace" -new_line $new_line)) {
+    if (202 -eq $(Search-CustomAliasInfo -key $alias -file_path $custom_help_path -action "replace" -new_line $new_line)) {
       # do nothing since it was found and replaced
     } else {
       if (Test-Path $custom_help_path) {
         Add-Content -Path $custom_help_path -Value $new_line
       }
     }
-    WriteVerbose "Alias written to the Table of contents"
+    Write-Verbose "Alias written to the Table of contents"
   }
 }
 
@@ -286,12 +358,12 @@ function PCA-RemoveCustomAliasInfo
   [cmdletbinding()]
   [outputtype([bool])]
   param(
-    [parameter(Mandatory=$true)] [string] $alias_name,
+    [parameter(Mandatory=$true)] [string] $alias,
     [string] $section = "all"
   )
   PROCESS {
     $return_code = $false
-    if (202 -eq $(PCA-SearchCustomAliasInfo -key $alias_name -section $section -action "remove")) {
+    if (202 -eq $(PCA-SearchCustomAliasInfo -key $alias -section $section -action "remove")) {
       $return_code = $true
     }
     return $return_code
