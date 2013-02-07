@@ -113,7 +113,7 @@ function PCA-CreateAlias
     [string] $variable
   )
   BEGIN {
-    Write-Verbose "BEGIN : PCA-SetCustomAlias"
+    Write-Verbose "BEGIN : PCA-CreateAlias"
   }
   process {
     # answer the customer's every need until the CPU melts or they say stop
@@ -126,7 +126,7 @@ function PCA-CreateAlias
         Write-Host "You can now use '$($alias)' in place of '$($command)' while running PowerShell"
         Write-Host "May the force be with you..."
         Export-Alias -Path $custom_aliases_path
-        Add-CustomAliasInfo -alias_name $alias -command_name $command -section "aliases"
+        PCA-AddCustomAliasInfo -alias $alias -command $command -section "aliases"
       } elseif (([int]$type) -eq 2) {   # file -> alias
         $filter = $(Read-Host "What keyword should we use to filter the search? (you can use * as wildcard)")
         $search_start = $(Read-Host "Enter a place to start the search at (press [Enter] to search 'C:\'.")
@@ -181,7 +181,7 @@ function PCA-CreateAlias
           Write-Host "You can now use '$($alias)' in place of '$($alias_path)' while running PowerShell"
           Write-Host "May the force be with you..."
           Export-Alias $custom_aliases_path
-          Add-CustomAliasInfo -alias_name $alias -command_name $alias_path -section "aliases"
+          PCA-AddCustomAliasInfo -alias $alias -command $alias_path -section "aliases"
         }
       } elseif (([int]$type) -eq 3) {   # script block -> alias
         # [ASSUME] the user ALWAYS has { } around the script block
@@ -245,7 +245,7 @@ function PCA-CreateAlias
     PCA-RestartShell
   }
   END {
-    Write-Verbose "END : PCA-SetCustomAlias"
+    Write-Verbose "END : PCA-CreateAlias"
   }
 }
 
@@ -276,8 +276,8 @@ function PCA-RestartShell
 function PCA-RestartProcess
 {
   <#
-    .PARAMETERS
-      * [Mandatory] [string] -process: the name of the process to restart
+    .PARAMETER process
+    the name of the process to restart
   #>
   [CmdletBinding()]
   PARAM (
@@ -288,13 +288,15 @@ function PCA-RestartProcess
   }
   PROCESS {
     Write-Verbose "Searching for the $($process) process..."
-    $current_process = Get-Process -Name
+    $current_process = Get-Process $process
     Write-Verbose "Found the $($process) process!"
     Write-Debug "process id: $($current_process) ."
     Write-Verbose "Starting a new $($process) process..."
     Start-Process $process
-    Write-Verbose "Started the process"
-    Stop-Process $current_powershell
+    Write-Verbose "Started the new process"
+    Write-Host $current_process
+    Stop-Process $current_process
+    Write-Verbose "Stopped the old process"
   }
   END {
     Write-Verbose "END : PCA-RestartProcess"
@@ -304,15 +306,16 @@ function PCA-RestartProcess
 function PCA-AddCustomAliasInfo
 {
   <#
-    .PURPOSE
+    .SYNOPSIS
       * Adds a new line to the given Table of Contents section (TODO)
-    .PARAMETERS
-      * [Mandatory] [string] -alias_name: the name of the alias for this entry
-      * [Mandatory] [string] -command_name: the name of the command or file that the alias is pointing to
-      * [string] -section
-        - [default] "aliases": the custom aliases section
-        - "params": the global parameters section
-        - "default": the default function section (not recommended)
+    .PARAMETER alias
+    the name of the alias for this entry
+    .PARAMETER command
+    the name of the command or file that the alias is pointing to
+    .PARAMETER section
+      - [default] "aliases": the custom aliases section
+      - "params": the global parameters section
+      - "default": the default function section (not recommended)
   #>
   [cmdletbinding()]
   param(
@@ -327,11 +330,15 @@ function PCA-AddCustomAliasInfo
     Write-Verbose "Creating the line to add to the Table of Contents"
     $new_line = "  * $($alias) : $($command)"
 
-    if (202 -eq $(Search-CustomAliasInfo -key $alias -file_path $custom_help_path -action "replace" -new_line $new_line)) {
+    if (202 -eq $(PCA-SearchCustomAliasInfo -key $alias -section $section -action "replace" -new_alias $alias -new_command $command)) {
       # do nothing since it was found and replaced
     } else {
-      if (Test-Path $custom_help_path) {
-        Add-Content -Path $custom_help_path -Value $new_line
+      $custom_help_paths = __tocMap $section
+      foreach ($help_path in $custom_help_paths) {
+        if (Test-Path $help_path) {
+          Add-Content -Path $help_path -Value $new_line
+          break     #only want to add it to the first one.  no reason to add it to all of them
+        }
       }
     }
     Write-Verbose "Alias written to the Table of contents"
@@ -342,7 +349,7 @@ function PCA-RemoveCustomAliasInfo
 {
   <#
     .PARAMETERS
-      * [Mandatory] [string] -alias_name: the name (aka key) of the alias to remove
+      * [Mandatory] [string] -alias: the name (aka key) of the alias to remove
       * [string] -section:
         - [default] "all": search through all of the sections
         - "default": search the default Table of Contents
@@ -350,8 +357,8 @@ function PCA-RemoveCustomAliasInfo
         - "params": search the params Table of Contents
     .RETURN
       * [boolean]:
-        - $true: found the line with the given alias_name and removed it
-        - $false: couldn't find the line with the given alias_name
+        - $true: found the line with the given alias and removed it
+        - $false: couldn't find the line with the given alias
     .NOTES
       * none
   #>
@@ -373,33 +380,35 @@ function PCA-RemoveCustomAliasInfo
 function PCA-SearchCustomAliasInfo
 {
   <#
-    .PURPOSE
-      * to search for and possibly edit a line in the table of contents
-    .PARAMETERS
-      * [Mandatory] [string] -key: the alias_name or key of the line that is being searched for
-      * [string] -section:
-        - [default] "all": search through all of the sections
-        - "default": search the default Table of Contents
-        - "aliases": search the aliases Table of Contents
-        - "params": search the params Table of Contents
-      * [string] -action:
-        - [default] nothing: just searches for the alias information
-        - "remove": searches and removes the alias information
-        - "replace": searches and replaces the alias information
-      * [string] -new_alias: if replacing, the new alias to replace it with
-      * [string] -new_command: if replacing, the new command/file_path to replace it with
-    .RETURN
-      * [int]:
-        - 200: found the line and did nothing
-        - 201: found the line and removed it
-        - 202: found the line and replaced it with the provided parameters
-        - 400: found the line but couldn't find the parameters for replacing it with
-        - 404: didn't find the line
+    .SYNOPSIS
+    to search for and possibly edit a line in the table of contents
+    .PARAMETER key
+    the alias or key of the line that is being searched for
+    .PARAMETER section
+      - [default] "all": search through all of the sections
+      - "default": search the default Table of Contents
+      - "aliases": search the aliases Table of Contents
+      - "params": search the params Table of Contents
+    .PARAMETER action
+      - [default] nothing: just searches for the alias information
+      - "remove": searches and removes the alias information
+      - "replace": searches and replaces the alias information
+    .PARAMETER new_alias
+    if replacing, the new alias to replace it with
+    .PARAMETER new_command
+    if replacing, the new command/file_path to replace it with
+    .OUTPUTS
+    return code : [int]
+      - 200: found the line and did nothing
+      - 201: found the line and removed it
+      - 202: found the line and replaced it with the provided parameters
+      - 400: found the line but couldn't find the parameters for replacing it with
+      - 404: didn't find the line
   #>
-  [cmdletbinding()]
-  [outputtype([int])]
-  param(
-    [parameter(Mandatory=$true)] [string] $key,
+  [CmdletBinding()]
+  [OutputType([int])]
+  PARAM (
+    [Parameter(Mandatory=$true)] [string] $key,
     [string] $section,
     [string] $action,
     [string] $new_alias = $null,
@@ -440,7 +449,7 @@ function PCA-SearchCustomAliasInfo
 
 # private function used only in Show-CustomHelp
 ## DONE
-function __displayCustomHelp
+Function __displayCustomHelp
 {
   [cmdletbinding()]
   param (
@@ -485,7 +494,7 @@ function __displayCustomHelp
 }
 
 #private function used only in PCA-SearchCustomAliasInfo
-function __tocMap
+Function __tocMap
 {
   [cmdletbinding()]
   [outputtype([string[]])]
@@ -560,7 +569,7 @@ $toc_variables = "$($profile)\..\Modules\toc_variables.txt"
 
 # don't export everything!
 # everything with a double underscore will be "private" to the module
-Export-ModuleMember -function @("PCA-ShowCustomHelp", "PCA-SetCustomAlias", "PCA-RestartShell", "PCA-RestartProcess", "PCA-AddCustomAliasInfo", "PCA-RemoveCustomAliasInfo")
+Export-ModuleMember -function @("PCA-ShowCustomHelp", "PCA-CreateAlias", "PCA-RestartShell", "PCA-RestartProcess", "PCA-AddCustomAliasInfo", "PCA-RemoveCustomAliasInfo")
 Export-ModuleMember -variable @("custom_aliases_path", "custom_variables_path", "custom_macros_path", "toc_default", "toc_aliases", "toc_variables", "toc_macros")
 
 if (Test-Path $custom_aliases_path) {

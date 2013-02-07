@@ -49,7 +49,6 @@ Function _better-install
         "  * PCA-RestartProcess : restarts the given process"
         "  * PCA-AddCustomAliasInfo : adds a line to the Table of Contents"
         "  * PCA-RemoveCustomAliasInfo : removes a line from the Table of Contents"
-        ""
       )
     }
     $toc_aliases_object = [psobject] @{
@@ -58,7 +57,6 @@ Function _better-install
         "==================================="
         "ALIASES:"
         "==================================="
-        ""
       )
     }
     $toc_macros_object = [psobject] @{
@@ -67,7 +65,6 @@ Function _better-install
         "==================================="
         "MACROS:"
         "==================================="
-        ""
       )
     }
     $toc_variables_object = [psobject] @{
@@ -82,7 +79,6 @@ Function _better-install
         "  * `$toc_default : $($toc_default)"
         "  * `$toc_aliases : $($toc_aliases)"
         "  * `$toc_variables : $($toc_variables)"
-        ""
       )
     }
     $custom_aliases_object = @{
