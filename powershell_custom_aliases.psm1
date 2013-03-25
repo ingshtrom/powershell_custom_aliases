@@ -104,7 +104,7 @@ function PCA-CreateAlias
   #>
   [CmdletBinding()]
   param (
-    [string] $type = $(Read-Host "Please enter the type of alias you want to create (run 'Get-Help PCA-CreateAlias' for more information)."),
+    [string] $type = $(Read-Host "Please enter the type of alias you want to create (run 'Get-Help PCA-CreateAlias -detailed' for more information)."),
     [string] $alias = $(Read-Host "What will be the alias name?"),
     [string] $command,
     [string] $filter,
@@ -186,14 +186,21 @@ function PCA-CreateAlias
       } elseif (([int]$type) -eq 3) {   # script block -> alias
         # [ASSUME] the user ALWAYS has { } around the script block
         # [ASSUME] the user hasn't already defined this alias, but with a different function
+        $script = $(Read-Host "Please enter in a script block surrounded by {}.")
+        Write-Verbose "Constructing the function..."
         $new_macro = "Function $($alias) $($script)"
+        Write-Verbose "Getting the function file that loads on startup..."
         $current_macros = Get-Content $custom_macros_path
         $macro_defined = $false
+        Write-Verbose "Checking if the macro is already defined..."
         foreach ($macro in $current_macros) {
           if ($macro -eq $new_macro) {
+            Write-Verbose "Looks like the macro is already defined"
+            Write-Warning "Found the following macro definition in the load file: $($macro)"
             $macro_defined = $true
           }
         }
+        # [ASSUME] the user is only adding a new macro, not overwriting an old one
         if ($macro_defined -eq $false) {
           $current_macros += $new_macro
         }
@@ -233,7 +240,7 @@ function PCA-CreateAlias
         switch ($result) {
           0 {
             $is_finished = $false
-            $type = $(Read-Host "Please enter the type of alias you want to create (0: Using an already defined cmdlet. 1: Search for a specific file path.")
+            $type = $(Read-Host "Please enter the type of alias you want to create (run 'Get-Help PCA-CreateAlias -detailed' for more information).")
             $alias = $(Read-Host "What will be the alias name?")
           }
           1 {
@@ -572,6 +579,7 @@ $toc_variables = "$($profile)\..\Modules\toc_variables.txt"
 Export-ModuleMember -function @("PCA-ShowCustomHelp", "PCA-CreateAlias", "PCA-RestartShell", "PCA-RestartProcess", "PCA-AddCustomAliasInfo", "PCA-RemoveCustomAliasInfo")
 Export-ModuleMember -variable @("custom_aliases_path", "custom_variables_path", "custom_macros_path", "toc_default", "toc_aliases", "toc_variables", "toc_macros")
 
-if (Test-Path $custom_aliases_path) {
-  Import-Alias $custom_aliases_path -Scope Global -ErrorAction Ignore
-}
+# now load the module files that include the macros, aliases, and variables.
+Import-Alias $custom_aliases_path -Scope Global -ErrorAction SilentlyContinue
+Import-Module $custom_variables_path -Scope Global -ErrorAction SilentlyContinue
+Import-

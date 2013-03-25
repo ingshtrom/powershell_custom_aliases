@@ -43,7 +43,7 @@ Function _better-install
         "==================================="
         "DEFAULT:"
         "==================================="
-        "  * PCA-SetCustomAlias : same as Set-Alias, but includes session-to-session persistance"
+        "  * PCA-CreateAlias : same as Set-Alias, but includes session-to-session persistance along with alternatives to create aliases for"
         "  * PCA-RestartShell : terminates this powershell instance and creates a new one"
         "  * PCA-ShowCustomHelp : displays this help screen"
         "  * PCA-RestartProcess : restarts the given process"
